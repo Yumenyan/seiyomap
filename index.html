@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>星陽ワールド 乗換案内・路線図</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+:root {
+  --sw: 370px; --accent: #007aff; --bg-glass: rgba(255,255,255,0.87);
+  --card: rgba(255,255,255,0.96); --tx: #1c1c1e; --sub: #8e8e93;
+  --bd: rgba(60,60,67,0.12); --inp: rgba(118,118,128,0.08);
+  --sh: 0 8px 24px rgba(0,0,0,0.08); --r: 16px; --rs: 10px;
+}
+*{box-sizing:border-box;-webkit-font-smoothing:antialiased}
+body,html{margin:0;padding:0;width:100%;height:100%;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",Arial,sans-serif;overflow:hidden;background:#f2f2f7;color:var(--tx)}
+#app{display:flex;width:100%;height:100%;position:relative}
+#sidebar{width:var(--sw);height:calc(100% - 32px);margin:16px;position:absolute;top:0;left:0;background:var(--bg-glass);backdrop-filter:blur(25px) saturate(180%);-webkit-backdrop-filter:blur(25px) saturate(180%);border-radius:24px;box-shadow:var(--sh);border:1px solid rgba(255,255,255,0.6);display:flex;flex-direction:column;z-index:1010;overflow:hidden}
+.hdr{padding:18px 20px 12px;background:transparent}
+.hdr h1{margin:0;font-size:1.25rem;font-weight:700;letter-spacing:-.5px}
+.hdr p{margin:3px 0 0;font-size:.76rem;color:var(--sub)}
+.status-area{margin:0 14px 10px;padding:9px 13px;background:rgba(255,255,255,.6);border-radius:var(--rs);border:1px solid var(--bd);font-size:.77rem;line-height:1.4;color:#48484a}
+.retry-btn{margin-top:5px;padding:5px 11px;background:var(--accent);color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:.73rem;font-weight:600}
+.upload-area{margin:0 14px 9px;padding:9px;border-radius:var(--rs);background:rgba(0,122,255,.05);border:1px dashed rgba(0,122,255,.3);text-align:center;cursor:pointer;transition:background .2s}
+.upload-area:hover{background:rgba(0,122,255,.1)}
+.upload-area input{display:none}
+.up-hint{font-size:.73rem;color:var(--accent);font-weight:600}
+.rsarea{margin:0 14px 10px;border-radius:var(--rs);background:rgba(255,149,0,.08);border:1px solid rgba(255,149,0,.2);overflow:hidden}
+.rs-toggle{padding:9px 13px;font-size:.78rem;font-weight:600;color:#c77700;cursor:pointer;user-select:none;display:flex;justify-content:space-between;align-items:center}
+.rs-panel{padding:0 13px 11px}
+.rs-panel input{width:100%;padding:7px 9px;background:rgba(255,255,255,.8);border:1px solid var(--bd);border-radius:7px;font-size:.76rem;margin-bottom:5px;outline:none}
+.rs-panel label{font-size:.69rem;color:var(--sub);display:block;margin-bottom:2px;font-weight:600}
+/* タブ：ズレ修正 */
+.tabs{display:flex;margin:0 14px 10px;padding:3px;background:rgba(120,120,128,.12);border-radius:11px;gap:0}
+.tab{flex:1;padding:7px 4px;text-align:center;cursor:pointer;font-size:.78rem;font-weight:600;color:var(--sub);border-radius:8px;transition:all .2s;white-space:nowrap;min-width:0}
+.tab.active{color:var(--tx);background:#fff;box-shadow:0 2px 7px rgba(0,0,0,.1)}
+.ctrl{padding:0 14px 10px}
+.sbox{width:100%;padding:9px 13px;background:var(--inp);border:1px solid transparent;border-radius:var(--rs);font-size:.86rem;color:var(--tx);outline:none;transition:all .2s}
+.sbox:focus{background:#fff;border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,122,255,.15)}
+.lv{flex:1;overflow-y:auto;padding:0 14px 14px}
+.li{padding:11px 13px;margin-bottom:7px;border-radius:var(--rs);background:var(--card);cursor:pointer;font-size:.83rem;border:1px solid var(--bd);box-shadow:0 2px 5px rgba(0,0,0,.03);transition:transform .15s ease,box-shadow .15s ease}
+.li:hover{transform:translateY(-1px);box-shadow:0 4px 11px rgba(0,0,0,.06)}
+.li.ri{border-left:5px solid var(--accent)}
+.it{font-weight:700;color:var(--tx);margin-bottom:2px;display:flex;align-items:center;justify-content:space-between}
+.is{font-size:.73rem;color:var(--sub)}
+.tl{margin-top:9px;padding-top:9px;border-top:1px solid var(--bd);display:none}
+.tl.open{display:block}
+.tr{display:flex;align-items:center;padding:5px 3px;border-radius:5px;cursor:pointer;transition:background .15s}
+.tr:hover{background:rgba(0,122,255,.08)}
+.tb{width:9px;height:9px;border-radius:50%;border:2px solid var(--accent);background:#fff;margin-right:9px;position:relative;flex-shrink:0}
+.tr:not(:last-child) .tb::after{content:'';position:absolute;top:9px;left:2px;width:2px;height:16px;background:var(--bd)}
+.tn{font-size:.78rem;font-weight:600;color:var(--tx)}
+#map-container{width:100%;height:100%;position:absolute;top:0;left:0;z-index:1}
+#map{width:100%;height:100%;background:#e5e5ea}
+.fg{margin-bottom:11px}
+.fg label{display:block;font-size:.7rem;font-weight:700;color:var(--sub);margin-bottom:3px;text-transform:uppercase;letter-spacing:.5px}
+.sbtn{width:100%;padding:11px;background:var(--accent);color:#fff;border:none;border-radius:var(--rs);font-weight:600;cursor:pointer;font-size:.88rem;box-shadow:0 4px 12px rgba(0,122,255,.3);transition:opacity .2s}
+.sbtn:hover{opacity:.9}
+.rc{border:1px solid var(--bd);border-radius:var(--rs);background:var(--card);padding:11px 13px;margin-bottom:7px;box-shadow:0 2px 7px rgba(0,0,0,.04)}
+.tn-node{text-align:center;margin:9px 0;font-size:.73rem;color:var(--sub);font-weight:600;background:rgba(120,120,128,.08);padding:5px;border-radius:7px}
+.exc-wrap{border:1px solid var(--bd);border-radius:var(--rs);padding:7px;max-height:130px;overflow-y:auto;background:rgba(255,255,255,.6);margin-top:3px}
+.exc-srch{padding:7px 9px;font-size:.78rem;border-radius:7px;border:1px solid var(--bd);background:var(--inp);width:100%;margin-bottom:3px;outline:none}
+.ri-block{margin-top:5px;padding-top:5px;border-top:1px dashed var(--bd);font-size:.7rem;color:var(--sub);line-height:1.5}
+.sbadge{display:inline-block;font-size:.67rem;font-weight:700;padding:2px 6px;border-radius:4px;margin-right:5px;vertical-align:middle}
+.fare-box{margin-top:10px;padding:10px 13px;background:rgba(0,122,255,.05);border-radius:var(--rs);border:1px solid rgba(0,122,255,.18)}
+.fare-row{display:flex;justify-content:space-between;font-size:.77rem;padding:2px 0;color:var(--tx)}
+.fare-total{border-top:1px solid var(--bd);margin-top:5px;padding-top:5px;font-weight:700;font-size:.85rem}
+.fare-note{font-size:.67rem;color:var(--sub);margin-top:4px;line-height:1.4}
+.detail-panel{border:1px solid var(--bd);border-radius:var(--rs);overflow:hidden;margin-bottom:10px}
+.detail-toggle{padding:8px 12px;font-size:.76rem;font-weight:600;color:var(--sub);cursor:pointer;user-select:none;display:flex;justify-content:space-between;align-items:center;background:rgba(120,120,128,.06)}
+.detail-body{padding:8px 12px;display:none}
+.detail-body.open{display:block}
+.detail-body select,.detail-body input[type=number]{width:100%;padding:7px 9px;background:rgba(255,255,255,.9);border:1px solid var(--bd);border-radius:7px;font-size:.8rem;margin-top:3px;outline:none;margin-bottom:8px}
+.leaflet-tooltip-custom{background:rgba(28,28,30,.85)!important;backdrop-filter:blur(8px)!important;color:#fff!important;border:none!important;border-radius:6px!important;font-weight:600!important;font-size:11px!important;padding:4px 8px!important;box-shadow:0 4px 12px rgba(0,0,0,.15)!important}
+.seg-meta{font-size:.72rem;color:var(--sub);margin-top:3px}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="sidebar">
+    <div class="hdr"><h1>🚃 星陽ワールド 乗換案内</h1></div>
+    <div class="status-area" id="conn-status">🔄 データ同期中...</div>
+    <div class="upload-area" id="drop-zone" onclick="document.getElementById('fin').click()">
+      <span class="up-hint">📁 data.json をドロップまたは選択</span>
+      <input type="file" id="fin" accept=".json">
+    </div>
+    <div class="rsarea">
+      <div class="rs-toggle" onclick="toggleRS()"><span>📊 利用者データ連携</span><span id="rs-arrow">▾</span></div>
+      <div class="rs-panel" id="rs-panel" style="display:none">
+        <label>スプレッドシートID</label><input id="rs-sid" placeholder="スプレッドシートID">
+        <label>gid（カンマ区切り可）</label><input id="rs-gid" placeholder="例: 0,1591757481">
+        <label>GAS Web App URL（任意）</label><input id="rs-gas" placeholder="https://script.google.com/macros/s/.../exec">
+        <button class="sbtn" onclick="loadRS()" style="padding:7px;font-size:.78rem">🔄 読み込む</button>
+        <div id="rs-st" style="font-size:.7rem;color:var(--sub);margin-top:5px"></div>
+      </div>
+    </div>
+    <div class="tabs">
+      <div class="tab active" id="tab-r" onclick="sw('routes')">路線一覧</div>
+      <div class="tab" id="tab-s" onclick="sw('stations')">駅一覧</div>
+      <div class="tab" id="tab-q" onclick="sw('search')">乗換案内</div>
+    </div>
+    <div class="ctrl" id="sbwrap"><input type="text" id="si" class="sbox" placeholder="🔍 駅名・路線名で絞り込み..."></div>
+    <div class="lv" id="lc"><p style="text-align:center;color:var(--sub);font-size:.83rem;margin-top:40px">データ読み込み中...</p></div>
+  </div>
+  <div id="map-container"><div id="map"></div></div>
+</div>
+<datalist id="stDL"></datalist>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ═══════════════════════════════════════════
+// 運賃テーブル（CSVから生成 / 外部fare.csvを読み込みで上書き可能）
+// ═══════════════════════════════════════════
+const FARE_TABLE_DEFAULT = {
+  "SR":[140,140,140,200,260,320,380,440,500,560,620,680,740,800,860,920,980,1040,1100,1160,1210,1260,1310,1360,1410,1460,1510,1560,1610,1660,1710,1760,1810,1860,1910,1960,2010,2060,2110,2160,2200,2240,2280,2320,2360,2400,2440,2480,2520,2560,2600,2640,2680,2720,2760,2800,2840,2880,2920,2960,2990,3020,3050,3080,3110,3140,3170,3200,3230,3260,3290,3320,3350,3380,3410,3440,3470,3500,3530,3560,3580,3600,3620,3640,3660,3680,3700,3720,3740,3760,3780,3800,3820,3840,3860,3880,3900,3920,3940,3960],
+  "天夜交通":[140,140,140,140,140,190,240,290,340,390,440,490,540,590,640,690,740,790,840,890,930,970,1010,1050,1090,1130,1170,1210,1250,1290,1320,1350,1380,1410,1440,1470,1500,1530,1560,1590,1620,1650,1680,1710,1740,1770,1800,1830,1860,1890,1920,1950,1980,2010,2040,2070,2100,2130,2160,2190,2220,2250,2280,2310,2340,2370,2400,2430,2460,2490,2520,2550,2580,2610,2640,2670,2700,2730,2760,2790,2820,2850,2880,2910,2940,2970,3000,3030,3060,3090,3120,3150,3180,3210,3240,3270,3300,3330,3360,3390],
+  "風神鉄道":[130,130,180,230,280,330,380,430,480,530,580,630,680,730,780,830,880,930,980,1030,1080,1130,1180,1230,1280,1330,1380,1430,1480,1530,1580,1630,1680,1730,1780,1830,1880,1930,1980,2030,2070,2110,2150,2190,2230,2270,2310,2350,2390,2430,2470,2510,2550,2590,2630,2670,2710,2750,2790,2830,2870,2910,2950,2990,3030,3070,3110,3150,3190,3230,3270,3310,3350,3390,3430,3470,3510,3550,3590,3630,3670,3710,3750,3790,3830,3870,3910,3950,3990,4030,4070,4110,4150,4190,4230,4270,4310,4350,4390,4430],
+  "風神地下鉄":[200,200,200,200,200,200,200,200,250,250,250,250,250,250,250,250,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300,300],
+  "堽壑鐵道":[300,300,380,460,540,620,700,780,860,940,1010,1080,1150,1220,1290,1360,1430,1500,1570,1640,1700,1760,1820,1880,1940,2000,2060,2120,2180,2240,2290,2340,2390,2440,2490,2540,2590,2640,2690,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740,2740],
+  "神北急行電鉄":[150,150,150,150,150,190,230,270,310,350,390,430,470,510,550,590,630,670,710,750,790,830,870,910,950,990,1030,1070,1110,1150,1190,1230,1270,1310,1350,1390,1430,1470,1510,1550,1580,1610,1640,1670,1700,1730,1760,1790,1820,1850,1880,1910,1940,1970,2000,2030,2060,2090,2120,2150,2180,2210,2240,2270,2300,2330,2360,2390,2420,2450,2480,2510,2540,2570,2600,2630,2660,2690,2720,2750,2780,2810,2840,2870,2900,2930,2960,2990,3020,3050,3080,3110,3140,3170,3200,3230,3260,3290,3320,3350],
+  "白木メトロ":[180,180,180,180,180,220,220,220,220,270,270,270,270,270,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380,380],
+  "白木鉄道":[140,140,140,190,240,290,340,390,440,490,540,590,640,690,740,780,820,860,900,940,980,1020,1060,1100,1140,1180,1220,1260,1300,1340,1370,1400,1430,1460,1490,1520,1550,1580,1610,1640,1670,1700,1730,1760,1790,1820,1850,1880,1910,1940,1970,2000,2030,2060,2090,2120,2150,2180,2210,2240,2270,2300,2330,2360,2390,2420,2450,2480,2510,2540,2570,2600,2630,2660,2690,2720,2750,2780,2810,2840,2870,2900,2930,2960,2990,3020,3050,3080,3110,3140,3170,3200,3230,3260,3290,3320,3350,3380,3410,3440],
+  "長急電鉄":[120,120,120,160,200,240,280,320,360,400,430,470,510,550,590,620,650,680,710,740,770,800,830,860,890,920,950,980,1010,1040,1060,1080,1100,1120,1140,1160,1180,1200,1220,1240,1260,1280,1300,1320,1340,1360,1380,1400,1420,1440,1460,1480,1500,1520,1540,1560,1580,1600,1620,1640,1660,1680,1700,1720,1740,1760,1780,1800,1820,1840,1860,1880,1900,1920,1940,1960,1980,2000,2020,2040,2060,2080,2100,2120,2140,2160,2180,2200,2220,2240,2260,2280,2300,2320,2340,2360,2380,2400,2420,2440],
+  "みなとライン":[180,180,180,250,250,250,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360,360],
+  "科山鉄道":[150,150,150,200,250,300,350,400,450,500,550,600,640,680,720,760,800,840,880,920,950,980,1010,1040,1070,1100,1130,1160,1190,1220,1250,1280,1310,1340,1370,1400,1430,1460,1490,1520,1550,1580,1610,1640,1670,1700,1730,1760,1790,1820,1850,1880,1910,1940,1970,2000,2030,2060,2090,2120,2150,2180,2210,2240,2270,2300,2330,2360,2390,2420,2450,2480,2510,2540,2570,2600,2630,2660,2690,2720,2750,2780,2810,2840,2870,2900,2930,2960,2990,3020,3050,3080,3110,3140,3170,3200,3230,3260,3290,3320],
+  "御川縣鐡":[320,320,390,460,530,600,670,740,810,880,940,1000,1060,1120,1180,1240,1300,1360,1420,1480,1540,1600,1660,1720,1780,1840,1900,1960,2020,2080,2140,2200,2260,2320,2380,2440,2500,2560,2620,2680,2740,2800,2860,2920,2980,3040,3100,3160,3220,3280,3340,3400,3460,3520,3580,3640,3700,3760,3820,3880,3940,4000,4060,4120,4180,4240,4300,4360,4420,4480,4540,4600,4660,4720,4780,4840,4900,4960,5020,5080,5140,5200,5260,5320,5380,5440,5500,5560,5620,5680,5740,5800,5860,5920,5980,6040,6100,6160,6220,6280],
+  "古莉亜鉄道":[100,100,170,240,300,360,420,480,530,580,630,680,720,760,800,840,880,920,960,1000,1040,1080,1120,1160,1200,1240,1280,1320,1360,1400,1440,1480,1520,1560,1600,1640,1680,1720,1760,1800,1840,1880,1920,1960,2000,2040,2080,2120,2160,2200,2240,2280,2320,2360,2400,2440,2480,2520,2560,2600,2640,2680,2720,2760,2800,2840,2880,2920,2960,3000,3040,3080,3120,3160,3200,3240,3280,3320,3360,3400,3440,3480,3520,3560,3600,3640,3680,3720,3760,3800,3840,3880,3920,3960,4000,4040,4080,4120,4160,4200],
+  "河原鉄道":[190,190,280,370,460,540,620,700,780,860,930,1000,1070,1140,1210,1270,1330,1390,1450,1510,1570,1630,1690,1750,1810,1870,1930,1990,2050,2110,2170,2230,2290,2350,2410,2470,2530,2590,2650,2710,2770,2830,2890,2950,3010,3070,3130,3190,3250,3310,3370,3430,3490,3550,3610,3670,3730,3790,3850,3910,3970,4030,4090,4150,4210,4270,4330,4390,4450,4510,4570,4630,4690,4750,4810,4870,4930,4990,5050,5110,5170,5230,5290,5350,5410,5470,5530,5590,5650,5710,5770,5830,5890,5950,6010,6070,6130,6190,6250,6310],
+  "澪川地下鉄":[210,210,210,260,260,300,300,300,340,340,340,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370],
+  "珱澪高速鉄道":[270,270,360,450,540,630,720,810,900,990,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050,1050],
+  "桐窪鉄道":[300,300,300,300,300,300,300,300,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500,500],
+  "宮古急行":[80,80,80,130,180,230,280,330,380,430,470,510,550,590,630,660,690,720,750,780,800,820,840,860,880,900,920,940,960,980,990,1000,1010,1020,1030,1040,1050,1060,1070,1080,1090,1100,1110,1120,1130,1140,1150,1160,1170,1180,1190,1200,1210,1220,1230,1240,1250,1260,1270,1280,1290,1300,1310,1320,1330,1340,1350,1360,1370,1380,1390,1400,1410,1420,1430,1440,1450,1460,1470,1480,1490,1500,1510,1520,1530,1540,1550,1560,1570,1580,1590,1600,1610,1620,1630,1640,1650,1660,1670,1680],
+  "珱羽地下鉄":[170,170,170,170,200,200,200,230,230,230,260,260,260,290,290,290,330,330,330,330,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370,370]
+};
+let FARE_TABLE = {...FARE_TABLE_DEFAULT};
+let OPERATORS = Object.keys(FARE_TABLE);
+
+// ═══════════════════════════════════════════
+// fare.csv / fare.json 外部読み込み
+// ═══════════════════════════════════════════
+function parseCSVFare(text){
+  const lines = text.trim().split(/\r?\n/);
+  if(lines.length < 2) return null;
+  const headers = lines[0].split(',').map(h=>h.trim());
+  const ops = headers.slice(1); // 事業者名
+  const tbl = {};
+  ops.forEach(op => tbl[op] = []);
+  for(let i=1; i<lines.length; i++){
+    const cols = lines[i].split(',');
+    ops.forEach((op,j) => {
+      const v = parseInt(cols[j+1]);
+      if(!isNaN(v)) tbl[op].push(v);
+    });
+  }
+  return tbl;
+}
+
+async function loadFareCSV(){
+  const targets = ['fare.csv','./fare.csv','data/fare.csv'];
+  for(const url of targets){
+    try{
+      const res = await fetch(url);
+      if(!res.ok) continue;
+      const text = await res.text();
+      const tbl = parseCSVFare(text);
+      if(tbl && Object.keys(tbl).length > 0){
+        FARE_TABLE = tbl;
+        OPERATORS = Object.keys(FARE_TABLE);
+        console.log('✅ fare.csv 読み込み完了:', url, Object.keys(tbl).length+'事業者');
+        return true;
+      }
+    }catch(e){}
+  }
+  // fare.json も試みる
+  const jsonTargets = ['fare.json','./fare.json','data/fare.json'];
+  for(const url of jsonTargets){
+    try{
+      const res = await fetch(url);
+      if(!res.ok) continue;
+      const tbl = await res.json();
+      if(tbl && Object.keys(tbl).length > 0){
+        FARE_TABLE = tbl;
+        OPERATORS = Object.keys(FARE_TABLE);
+        console.log('✅ fare.json 読み込み完了:', url);
+        return true;
+      }
+    }catch(e){}
+  }
+  console.log('ℹ️ 外部運賃ファイル未検出、内蔵データを使用');
+  return false;
+}
+
+// ファイル手動アップロード
+function readFareFile(file){
+  const r = new FileReader();
+  r.onload = ev => {
+    try{
+      let tbl = null;
+      if(file.name.endsWith('.csv')){
+        tbl = parseCSVFare(ev.target.result);
+      } else {
+        tbl = JSON.parse(ev.target.result);
+      }
+      if(tbl && Object.keys(tbl).length > 0){
+        FARE_TABLE = tbl;
+        OPERATORS = Object.keys(FARE_TABLE);
+        updateList();
+        alert('✅ 運賃データを更新しました（'+OPERATORS.length+'事業者）');
+      }
+    }catch(e){ alert('読み込みエラー: '+e.message); }
+  };
+  r.readAsText(file, 'utf-8');
+}
+
+// ═══════════════════════════════════════════
+// サービスタイプ定義（超特急→新幹線、特別→有料特急、各停と普通を統合）
+// ═══════════════════════════════════════════
+const SVC = {
+  新幹線:   { label:'新幹線',   color:'#ff2d55', bg:'rgba(255,45,85,.13)',  sw:0.22, pri:6 },
+  有料特急: { label:'有料特急', color:'#af52de', bg:'rgba(175,82,222,.13)', sw:0.35, pri:5 },
+  特急:     { label:'特急',     color:'#ff3b30', bg:'rgba(255,59,48,.13)',  sw:0.4,  pri:4 },
+  急行:     { label:'急行',     color:'#ff9500', bg:'rgba(255,149,0,.13)',  sw:0.6,  pri:3 },
+  快速急行: { label:'快速急行', color:'#ff6b00', bg:'rgba(255,107,0,.13)', sw:0.52, pri:4 },
+  快速:     { label:'快速',     color:'#ffcc00', bg:'rgba(255,204,0,.13)',  sw:0.68, pri:3 },
+  準急:     { label:'準急',     color:'#34c759', bg:'rgba(52,199,89,.13)',  sw:0.82, pri:2 },
+  区間急行: { label:'区間急行', color:'#30b050', bg:'rgba(48,176,80,.13)', sw:0.75, pri:3 },
+  空港:     { label:'空港',     color:'#007aff', bg:'rgba(0,122,255,.13)', sw:0.5,  pri:4 },
+  各停:     { label:'各停',     color:'#8e8e93', bg:'rgba(142,142,147,.13)',sw:1.0,  pri:1 },
+};
+const SVC_KEYS = Object.keys(SVC);
+
+function detectSvc(route) {
+  const n = String(route.number||'').split('|')[0].trim();
+  const nm = String(route.name||'').split('|')[0].split('||')[0].trim();
+  const s = n + nm;
+  // 新幹線（元：超特急）
+  if(/超特急|新幹線|Shinkansen/i.test(s)) return '新幹線';
+  // 有料特急（元：特別）
+  if(/特別|有料特急/.test(s)) return '有料特急';
+  if(/快速急行|快急/.test(s)) return '快速急行';
+  if(/特急/.test(s)) return '特急';
+  if(/区間急行/.test(s)) return '区間急行';
+  if(/急行/.test(s)) return '急行';
+  if(/快速/.test(s)) return '快速';
+  if(/準急|半急/.test(s)) return '準急';
+  if(/空港|エアポート/.test(s)) return '空港';
+  // 普通・各停 → 各停に統合
+  if(/各停|各駅停車|普通/.test(s)) return '各停';
+  // 名前付き特別列車 → 有料特急扱い
+  if(n && !/^\d/.test(n) && n.length>0) return '有料特急';
+  return '各停';
+}
+
+// ═══════════════════════════════════════════
+// グローバル状態
+// ═══════════════════════════════════════════
+let map=null, routeLG=null, stLG=null, curTab='routes', gData=null;
+let oxOff=0, ozOff=0;
+let stMk={}, rfMap=[], gGraph={}, gCoords={};
+let excludedRoutes=new Set();
+let lastExQ='', virtualHL=[];
+let ridershipMap={};
+let blockPerKm=1000; // デフォルト: 1000ブロック = 1km
+let defaultOp=OPERATORS[0];
+
+const VTC={sameName:250,connection:150};
+const RS_SID='1KnLuyX2yr_mg4HT3ixpHJPjLka1PnJyXG54P3ep0npo';
+const RS_GID='0,1591757481'; // 利用者数データ(SR) と 利用者数データ(私鉄)
+
+function esc(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
+
+function routeKey(r){if(!r)return'UNK';const n=parseName(r.name).primary;return`${n}___${String(r.number||'').trim()}___${toHex(r.color)}`}
+
+function saveEx(){try{localStorage.setItem('mtr_ex',JSON.stringify([...excludedRoutes]))}catch(e){}}
+function loadEx(){try{const r=localStorage.getItem('mtr_ex');if(r)excludedRoutes=new Set(JSON.parse(r))}catch(e){}}
+loadEx();
+
+// ═══════════════════════════════════════════
+// マップ初期化
+// ═══════════════════════════════════════════
+function initMap(){
+  if(map)return;
+  map=L.map('map',{crs:L.CRS.Simple,minZoom:-8,maxZoom:4,zoomDelta:.5,zoomSnap:.5,attributionControl:false,zoomControl:false});
+  L.control.zoom({position:'bottomright'}).addTo(map);
+  if(!map.getPane('stPane')){const p=map.createPane('stPane');p.style.zIndex=600}
+  routeLG=L.layerGroup().addTo(map);
+  stLG=L.layerGroup().addTo(map);
+}
+initMap();
+map.setView([0,0],0);
+
+async function autoLoad(){
+  const el=document.getElementById('conn-status');
+  await loadFareCSV();
+  const targets=[
+    {url:'http://localhost:8888/data',label:'Localhost(8888)'},
+    {url:'http://localhost:18888/data',label:'Localhost(18888)'},
+    {url:'data.json',label:'data.json'},
+    {url:'./data.json',label:'./data.json'}
+  ];
+  for(let t of targets){
+    try{
+      let res=await fetch(t.url,{method:'GET',mode:'cors'});
+      if(res.ok){let d=await res.json();el.innerHTML=`✅ 同期完了（${t.label}）`;el.style.background='rgba(52,199,89,.12)';el.style.color='#248a3d';renderMap(d);return;}
+    }catch(e){}
+  }
+  el.innerHTML=`<div style="font-weight:600;color:#ff3b30">📡 自動同期待機中</div><div style="font-size:.7rem;color:#8e8e93;margin-top:2px">data.json をドロップで読み込めます</div><button class="retry-btn" onclick="autoLoad()">再試行</button>`;
+  el.style.background='rgba(255,59,48,.1)';
+}
+window.addEventListener('DOMContentLoaded',autoLoad);
+window.addEventListener('DOMContentLoaded',initRS);
+
+document.getElementById('fin').addEventListener('change',e=>{if(e.target.files.length>0)readFile(e.target.files[0])});
+const dz=document.getElementById('drop-zone');
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.style.background='rgba(0,122,255,.15)'});
+dz.addEventListener('dragleave',()=>{dz.style.background='rgba(0,122,255,.05)'});
+dz.addEventListener('drop',e=>{
+  e.preventDefault();dz.style.background='rgba(0,122,255,.05)';
+  if(e.dataTransfer.files.length>0){
+    const f=e.dataTransfer.files[0];
+    // fare.csv / fare.json のドロップ対応
+    if(f.name.endsWith('.csv')||f.name.toLowerCase().includes('fare')){
+      readFareFile(f);
+    } else {
+      readFile(f);
+    }
+  }
+});
+
+function readFile(file){
+  const r=new FileReader();
+  r.onload=ev=>{try{const d=JSON.parse(ev.target.result);document.getElementById('conn-status').innerHTML='📁 ファイル読み込み完了';renderMap(d)}catch(e){alert('JSON読み込みエラー: '+e.message)}};
+  r.readAsText(file);
+}
+
+function toHex(n){if(n==null)return'#8e8e93';return'#'+n.toString(16).padStart(6,'0')}
+
+function parseName(raw){
+  if(!raw||typeof raw!=='string')return{primary:'Unknown',sub:''};
+  const p=raw.split('||');const np=p[0].split('|');
+  return{primary:np[0]||'Unknown',sub:np.slice(1).join(' / ')+(p[1]?` (${p[1].replace(/\|/g,' → ')})`:'')}
+}
+
+function stripCode(n){return(n||'').replace(/^(\[[^\]]*\])+/,'').trim()}
+
+// ═══════════════════════════════════════════
+// 運賃計算
+// ═══════════════════════════════════════════
+function lookupFare(distBlocks, op){
+  const tbl=FARE_TABLE[op];
+  if(!tbl) return null;
+  const km=Math.max(1,Math.min(tbl.length,Math.round(distBlocks/blockPerKm)));
+  return tbl[km-1]??null;
+}
+
+function detectOp(route){
+  const nm=String(route.name||'').split('||')[0].split('|')[0];
+  const nu=String(route.number||'').split('|')[0];
+  const s=nm+' '+nu;
+  for(const op of OPERATORS){if(s.includes(op))return op;}
+  return null;
+}
+
+// ═══════════════════════════════════════════
+// 距離計算
+// ═══════════════════════════════════════════
+function calcDist(k1,k2,positions,stations){
+  if(positions&&positions[k1]&&positions[k2]){
+    const p1=positions[k1],p2=positions[k2];
+    const dx=Math.abs(p2.x-p1.x),dy=Math.abs(p2.y-p1.y);
+    if(dx===0||dy===0) return Math.sqrt(dx*dx+dy*dy);
+    if(Math.abs(dx-dy)<1) return Math.sqrt(dx*dx+dy*dy);
+    return dx+dy;
+  }
+  const i1=k1.split('_')[0],i2=k2.split('_')[0];
+  const s1=stations[i1],s2=stations[i2];
+  if(s1&&s2) return Math.sqrt(Math.pow(s2.x-s1.x,2)+Math.pow(s2.z-s1.z,2));
+  return 0;
+}
+
+// ═══════════════════════════════════════════
+// マップレンダリング
+// ═══════════════════════════════════════════
+function renderMap(data){
+  if(!data)return;
+  const d=Array.isArray(data)?data[0]:data;
+  gData=d;
+  const routes=d.routes||[],stations=d.stations||{},positions=d.positions||{};
+  routeLG.clearLayers();stLG.clearLayers();
+  stMk={};rfMap=[];gGraph={};gCoords={};
+
+  let minX=Infinity,minZ=Infinity,hasV=false;
+  for(const id in stations){const s=stations[id];if(s&&typeof s.x==='number'&&typeof s.z==='number'){if(s.x<minX)minX=s.x;if(s.z<minZ)minZ=s.z;hasV=true;}}
+  oxOff=hasV?minX:0;ozOff=hasV?minZ:0;
+
+  const bounds=[],stCoords={};
+  for(const id in stations){
+    const s=stations[id];
+    if(!s||typeof s.x!=='number'||typeof s.z!=='number')continue;
+    const lat=-(s.z-ozOff),lng=s.x-oxOff;
+    const pos=[lat,lng];
+    bounds.push(pos);stCoords[id]=pos;gCoords[id]=pos;
+    const ni=parseName(s.name);
+    gGraph[id]=[];
+    const mk=L.circleMarker(pos,{radius:5,fillColor:'#fff',color:'#1c1c1e',weight:2.5,opacity:1,fillOpacity:1,pane:'stPane'});
+    mk.bindPopup(()=>`<div style="padding:4px"><strong style="font-size:1.05rem">${esc(ni.primary)}</strong><br><span style="color:#8e8e93;font-size:.76rem">${esc(ni.sub)}</span>${buildRSHtml(s.name)}</div>`);
+    mk.bindTooltip(ni.primary,{permanent:false,direction:'top',offset:[0,-6],className:'leaflet-tooltip-custom'});
+    mk.addTo(stLG);stMk[id]=mk;
+  }
+
+  routes.forEach(route=>{
+    if(!route||!route.stations||route.stations.length===0)return;
+    const numS=String(route.number||'').trim();
+    const isOOS=!numS||numS.includes('回送')||numS.includes('試運転');
+    const hex=toHex(route.color);
+    const ni=parseName(route.name);
+    const svcType=detectSvc(route);
+    const svcDef=SVC[svcType]||SVC['各停'];
+    const op=detectOp(route);
+
+    for(let i=0;i<route.stations.length-1;i++){
+      const k1=route.stations[i],k2=route.stations[i+1];
+      if(typeof k1!=='string'||typeof k2!=='string')continue;
+      const fId=k1.split('_')[0],tId=k2.split('_')[0];
+      const seg=[];
+
+      if(positions[k1]&&positions[k2]){
+        const p1=positions[k1],p2=positions[k2];
+        const x1=p1.x-oxOff,y1=-(p1.y-ozOff),x2=p2.x-oxOff,y2=-(p2.y-ozOff);
+        const dx=x2-x1,dy=y2-y1;
+        seg.push([y1,x1]);
+        if(dx!==0&&dy!==0&&Math.abs(dx)!==Math.abs(dy)){
+          const adx=Math.abs(dx),ady=Math.abs(dy);
+          if(p1.vertical){
+            let my=y2-Math.sign(dy)*adx;
+            if(Math.sign(my-y1)===Math.sign(dy))seg.push([my,x1]);
+            else{let mx=x2-Math.sign(dx)*ady;seg.push([y1,mx]);}
+          } else {
+            let mx=x2-Math.sign(dx)*ady;
+            if(Math.sign(mx-x1)===Math.sign(dx))seg.push([y1,mx]);
+            else{let my=y2-Math.sign(dy)*adx;seg.push([my,x1]);}
+          }
+        }
+        seg.push([y2,x2]);
+      } else if(stCoords[fId]&&stCoords[tId]){
+        seg.push(stCoords[fId]);seg.push(stCoords[tId]);
+      }
+      if(seg.length<2)continue;
+
+      const pl=L.polyline(seg,{color:hex,weight:5,opacity:.85,lineJoin:'round',lineCap:'round'}).addTo(routeLG);
+      pl.bindPopup(`<div style="font-size:.86rem"><strong style="color:${hex}">${esc(ni.primary)}</strong><br><span style="font-size:.73rem;color:#8e8e93">${esc(ni.sub)}</span></div>`);
+      rfMap.push({routeObj:route,fromId:fId,toId:tId,polyline:pl,color:hex,latlngs:seg});
+
+      if(!isOOS&&stations[fId]&&stations[tId]){
+        const dist=calcDist(k1,k2,positions,stations);
+        if(!gGraph[fId])gGraph[fId]=[];
+        gGraph[fId].push({to:tId,posKey1:k1,posKey2:k2,route:route,realDist:dist,serviceType:svcType,speedWeight:svcDef.sw,operator:op});
+      }
+    }
+  });
+
+  // 同名駅・接続駅仮想エッジ
+  const nGrp={};
+  for(const id in stations){
+    if(!gGraph[id])continue;
+    const pn=parseName(stations[id].name).primary;
+    if(!nGrp[pn])nGrp[pn]=[];nGrp[pn].push(id);
+  }
+  function addVE(a,b,vt){
+    if(!a||!b||a===b||!gGraph[a]||!gGraph[b])return;
+    if(gGraph[a].some(e=>e.isVirtual&&e.to===b&&e.vt===vt))return;
+    const cost=VTC[vt]||250;
+    gGraph[a].push({to:b,route:{number:'__VT_'+vt,name:'',isVirtual:true,vt:vt},realDist:cost,speedWeight:1,serviceType:'各停',isVirtual:true,vt:vt,operator:null});
+  }
+  for(const pn in nGrp){const ids=nGrp[pn];if(ids.length<2)continue;for(let i=0;i<ids.length;i++)for(let j=i+1;j<ids.length;j++){addVE(ids[i],ids[j],'sameName');addVE(ids[j],ids[i],'sameName');}}
+  for(const id in stations){
+    const cs=stations[id].connections;
+    if(!Array.isArray(cs)||cs.length===0)continue;
+    cs.forEach(oid=>{if(!stations[oid])return;addVE(id,oid,'connection');addVE(oid,id,'connection');});
+  }
+
+  if(bounds.length>0)map.fitBounds(L.latLngBounds(bounds).pad(.08));
+  const dl=document.getElementById('stDL');
+  if(dl){dl.innerHTML='';const un=[...new Set(Object.values(stations).map(s=>parseName(s.name).primary))].sort();un.forEach(n=>{const o=document.createElement('option');o.value=n;dl.appendChild(o);})}
+  updateList();
+}
+
+// ═══════════════════════════════════════════
+// ダイクストラ探索
+// ═══════════════════════════════════════════
+function edgeCostW(edge,mode){
+  if(edge.isVirtual)return edge.realDist;
+  const sw=edge.speedWeight||1.0;
+  switch(mode){
+    case 'time':    return edge.realDist*sw;
+    case 'express': return edge.realDist*Math.pow(sw,2.2);
+    case 'fare':    return edge.realDist;
+    case 'balanced':default: return edge.realDist*Math.pow(sw,.75);
+  }
+}
+
+function xferPenalty(mode){
+  return{time:280,express:700,fare:7000,balanced:4000}[mode]||3500;
+}
+
+function findPath(startIds,endIds,mode){
+  if(!startIds||!startIds.length||!endIds||!endIds.length)return null;
+  const endSet=new Set(endIds);
+  let dist={},back={},pq=[];
+  for(const sid of startIds){
+    if(!gGraph[sid])continue;
+    const k=sid+'_NONE';dist[k]=0;
+    pq.push({stId:sid,lrk:'NONE',lsId:null,cost:0,usedR:new Set(),key:k});
+  }
+  let tKey=null,tCost=Infinity;
+  while(pq.length>0){
+    pq.sort((a,b)=>a.cost-b.cost);
+    const cur=pq.shift();
+    if(cur.cost>dist[cur.key])continue;
+    if(endSet.has(cur.stId)){if(cur.cost<tCost){tCost=cur.cost;tKey=cur.key;}continue;}
+    for(const edge of(gGraph[cur.stId]||[])){
+      if(edge.to===cur.lsId)continue;
+      if(!edge.isVirtual&&excludedRoutes.has(routeKey(edge.route)))continue;
+      const rk=edge.isVirtual?edge.route.number:routeKey(edge.route);
+      const curVirt=cur.lrk&&cur.lrk.startsWith('__VT_');
+      const nxtVirt=edge.isVirtual;
+      const isXfer=!curVirt&&!nxtVirt&&cur.lrk!=='NONE'&&cur.lrk!==rk;
+      let ec=edgeCostW(edge,mode);
+      let xp=0;
+      if(isXfer){
+        xp=xferPenalty(mode);
+        const cr=new Set(cur.usedR);
+        if(cur.lrk!=='NONE'&&!curVirt)cr.add(cur.lrk);
+        if(cr.has(rk))xp+=300000;
+      }
+      const nk=edge.to+'_'+rk;
+      const nc=cur.cost+ec+xp;
+      if(dist[nk]===undefined||nc<dist[nk]){
+        dist[nk]=nc;
+        back[nk]={fk:cur.key,fSt:cur.stId,tSt:edge.to,route:edge.route,realDist:edge.realDist,svcType:edge.serviceType,op:edge.operator};
+        const nu=new Set(cur.usedR);if(cur.lrk!=='NONE'&&!curVirt)nu.add(cur.lrk);
+        pq.push({stId:edge.to,lrk:rk,lsId:cur.stId,cost:nc,usedR:nu,key:nk});
+      }
+    }
+  }
+  if(!tKey)return null;
+  let path=[],ck=tKey;
+  while(back[ck]){const s=back[ck];path.unshift({to:s.tSt,from:s.fSt,route:s.route,realDist:s.realDist,svcType:s.svcType,op:s.op});ck=s.fk;}
+  return path;
+}
+
+function findPathWP(startIds,wpIds,endIds,mode){
+  if(!wpIds||!wpIds.length)return findPath(startIds,endIds,mode);
+  const p1=findPath(startIds,wpIds,mode);if(!p1||!p1.length)return null;
+  const last=p1[p1.length-1];
+  const p2=findPath([last.to],endIds,mode);if(!p2||!p2.length)return null;
+  return p1.concat(p2);
+}
+
+// ═══════════════════════════════════════════
+// UI ヘルパー
+// ═══════════════════════════════════════════
+function resetHL(){rfMap.forEach(s=>s.polyline.setStyle({color:s.color,weight:5,opacity:.85}));virtualHL.forEach(l=>routeLG.removeLayer(l));virtualHL=[];}
+
+function stIdsByName(name){
+  const st=(gData&&gData.stations)||{};const ids=[];
+  for(const id in st){if(parseName(st[id].name).primary===name)ids.push(id);}
+  return ids;
+}
+
+function svBadge(svcType){
+  const d=SVC[svcType]||SVC['各停'];
+  return`<span class="sbadge" style="background:${d.bg};color:${d.color}">${esc(d.label)}</span>`;
+}
+
+// ═══════════════════════════════════════════
+// 乗換案内実行
+// ═══════════════════════════════════════════
+function execSearch(){
+  const sn=document.getElementById('r-start').value.trim();
+  const wn=document.getElementById('r-wp').value.trim();
+  const en=document.getElementById('r-end').value.trim();
+  const mode=document.getElementById('r-mode').value;
+  const resEl=document.getElementById('s-results');
+  if(!sn||!en)return;
+
+  const sIds=stIdsByName(sn),wIds=wn?stIdsByName(wn):[],eIds=stIdsByName(en);
+  if(!sIds.length||!eIds.length){resEl.innerHTML='<p style="color:#ff3b30;font-size:.8rem;text-align:center">⚠️ 駅が見つかりません</p>';resetHL();return;}
+
+  const path=findPathWP(sIds,wIds,eIds,mode);
+  if(!path||!path.length){resEl.innerHTML='<p style="color:#ff3b30;font-size:.8rem;text-align:center">⚠️ 経路が見つかりません</p>';resetHL();return;}
+
+  // マップ強調
+  rfMap.forEach(s=>s.polyline.setStyle({color:'#8e8e93',weight:3,opacity:.15}));
+  virtualHL.forEach(l=>routeLG.removeLayer(l));virtualHL=[];
+  path.forEach(step=>{
+    if(step.route.isVirtual){
+      const p1=gCoords[step.from],p2=gCoords[step.to];
+      if(p1&&p2){const dl=L.polyline([p1,p2],{color:'#ffcc00',weight:4,opacity:.9,dashArray:'6,8'}).addTo(routeLG);dl.bringToFront();virtualHL.push(dl);}
+      return;
+    }
+    rfMap.filter(s=>s.routeObj===step.route&&((s.fromId===step.from&&s.toId===step.to)||(s.fromId===step.to&&s.toId===step.from))).forEach(t=>{t.polyline.setStyle({color:t.color,weight:8,opacity:1});t.polyline.bringToFront();});
+  });
+
+  // セグメント分解
+  const segs=[];
+  path.forEach(step=>{
+    const fn=parseName((gData.stations[step.from]||{}).name||'').primary;
+    const tn=parseName((gData.stations[step.to]||{}).name||'').primary;
+    if(step.route.isVirtual){segs.push({type:'virtual',vt:step.route.vt,from:fn,to:tn});return;}
+    const ni=parseName(step.route.name);
+    const numS=String(step.route.number||'').trim().split('|')[0];
+    const rk=routeKey(step.route);
+    const last=segs[segs.length-1];
+    if(last&&last.type==='ride'&&last.rk===rk){
+      last.to=tn;last.count++;last.dist=(last.dist||0)+(step.realDist||0);
+    } else {
+      segs.push({type:'ride',rk:rk,lineName:ni.primary,numS:numS,svcType:step.svcType||'各停',from:fn,to:tn,color:toHex(step.route.color),count:1,dist:step.realDist||0,op:step.op});
+    }
+  });
+
+  // 運賃計算
+  const opDist={};
+  segs.forEach(sg=>{if(sg.type==='ride'&&sg.op)opDist[sg.op]=(opDist[sg.op]||0)+(sg.dist||0);});
+  const fareItems=[];let totalFare=0;
+  for(const [op,db] of Object.entries(opDist)){
+    const f=lookupFare(db,op);
+    if(f!==null){const km=(db/blockPerKm).toFixed(1);fareItems.push({op,km,fare:f});totalFare+=f;}
+  }
+  const unknownOps=segs.filter(sg=>sg.type==='ride'&&!sg.op).length>0;
+
+  // HTML生成
+  let html=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><h4 style="margin:0;font-size:.86rem;color:var(--tx)">🔍 検索結果</h4><button onclick="resetHL()" style="cursor:pointer;background:rgba(120,120,128,.12);border:none;padding:4px 10px;border-radius:6px;font-size:.73rem;font-weight:600">クリア</button></div>`;
+
+  segs.forEach((sg,i)=>{
+    if(sg.type==='virtual'){
+      const lb=sg.vt==='sameName'?'同名駅間の徒歩':'接続徒歩';
+      html+=`<div class="tn-node">🚶 ${esc(sg.from)} → ${esc(sg.to)}（${lb}）</div>`;
+      return;
+    }
+    if(i>0&&segs[i-1].type==='ride')html+=`<div class="tn-node">🔀 ${esc(sg.from)}駅で乗り換え</div>`;
+    const sdef=SVC[sg.svcType]||SVC['各停'];
+    const typeDisp=sg.numS?`[${sg.numS}]`:'';
+    const kmDisp=sg.dist>0?(sg.dist/blockPerKm).toFixed(1):'?';
+    html+=`<div class="rc" style="border-left:5px solid ${sg.color}">
+      <div style="display:flex;align-items:center;flex-wrap:wrap;gap:3px">
+        ${svBadge(sg.svcType)}
+        <strong style="color:var(--tx);font-size:.86rem">${esc(sg.lineName)}</strong>
+        ${typeDisp?`<span style="font-size:.73rem;color:var(--accent);background:rgba(0,122,255,.1);padding:1px 5px;border-radius:4px">${esc(typeDisp)}</span>`:''}
+        ${sg.op?`<span style="font-size:.67rem;color:var(--sub);margin-left:2px">（${esc(sg.op)}）</span>`:''}
+      </div>
+      <div style="margin-top:5px;font-size:.82rem;font-weight:600">${esc(sg.from)} ➔ ${esc(sg.to)}</div>
+      <div class="seg-meta">🚉 ${sg.count}駅間　📏 約${kmDisp}km</div>
+    </div>`;
+  });
+
+  // 運賃表示
+  if(fareItems.length>0||unknownOps){
+    html+=`<div class="fare-box"><div style="font-size:.78rem;font-weight:700;margin-bottom:6px;color:var(--tx)">💰 運賃概算</div>`;
+    fareItems.forEach(fi=>{html+=`<div class="fare-row"><span>${esc(fi.op)} <span style="color:var(--sub);font-size:.7rem">(${fi.km}km)</span></span><span style="font-weight:600">${fi.fare.toLocaleString()}円</span></div>`;});
+    if(fareItems.length>1){html+=`<div class="fare-row fare-total"><span>合計</span><span>¥${totalFare.toLocaleString()}</span></div>`;}
+    if(unknownOps){html+=`<div class="fare-note">※一部路線の事業者が自動検出できませんでした</div>`;}
+    html+=`<div class="fare-note">⚠️ 座標距離から算出した概算です。カーブ等により実際の営業キロとは異なる場合があります。<br>スケール設定: 1km = ${blockPerKm}ブロック（詳細設定で変更可）</div></div>`;
+  }
+
+  resEl.innerHTML=html;
+  const pts=[];path.forEach(s=>{if(gCoords[s.from])pts.push(gCoords[s.from]);if(gCoords[s.to])pts.push(gCoords[s.to]);});
+  if(pts.length>0)map.fitBounds(L.latLngBounds(pts).pad(.2));
+}
+
+// ═══════════════════════════════════════════
+// 除外系統フィルター
+// ═══════════════════════════════════════════
+function filterExclude(q){
+  lastExQ=(q||'').toLowerCase();
+  const el=document.getElementById('exc-list');if(!el||!gData)return;
+  const routes=gData.routes||[];let html='';const seen=new Set();
+  routes.forEach(r=>{
+    if(!r)return;const k=routeKey(r);if(seen.has(k))return;seen.add(k);
+    const ni=parseName(r.name);const ns=String(r.number||'').trim();const hex=toHex(r.color);
+    const dp=`${ni.primary} ${ns?`[${ns}]`:''}`.trim();
+    const match=dp.toLowerCase().includes(lastExQ);const chk=excludedRoutes.has(k);
+    if(match||chk){
+      const ek=encodeURIComponent(k);
+      html+=`<label style="display:flex;align-items:center;margin-bottom:5px;cursor:pointer"><input type="checkbox" ${chk?'checked':''} onchange="toggleEx('${ek}',this.checked)" style="margin-right:6px"><span style="width:9px;height:9px;background:${hex};border-radius:2px;margin-right:5px;flex-shrink:0;display:inline-block"></span><span style="font-size:.76rem"><strong>${esc(ni.primary)}</strong>${ns?` <span style="color:var(--accent);font-size:.7rem">[${esc(ns)}]</span>`:''}</span></label>`;
+    }
+  });
+  el.innerHTML=html||'<span style="color:var(--sub);font-size:.73rem">該当なし</span>';
+}
+
+function toggleEx(ek,checked){const k=decodeURIComponent(ek);if(checked)excludedRoutes.add(k);else excludedRoutes.delete(k);saveEx();}
+
+// ═══════════════════════════════════════════
+// 詳細設定
+// ═══════════════════════════════════════════
+function toggleDetail(id){
+  const el=document.getElementById(id);
+  if(el)el.classList.toggle('open');
+  const arrow=document.getElementById(id+'-arrow');
+  if(arrow)arrow.textContent=el&&el.classList.contains('open')?'▴':'▾';
+}
+
+function applyFareSettings(){
+  const sc=parseFloat(document.getElementById('fare-scale').value);
+  const op=document.getElementById('fare-op').value;
+  if(sc>0)blockPerKm=sc;
+  if(op)defaultOp=op;
+}
+
+// ═══════════════════════════════════════════
+// タブ切り替え・リスト更新
+// ═══════════════════════════════════════════
+const TAB_IDS={routes:'tab-r',stations:'tab-s',search:'tab-q'};
+function sw(tab){
+  curTab=tab;
+  Object.entries(TAB_IDS).forEach(([t,id])=>{
+    const el=document.getElementById(id);
+    if(el)el.classList.toggle('active',t===tab);
+  });
+  document.getElementById('sbwrap').style.display=(tab==='search')?'none':'block';
+  resetHL();updateList();
+}
+
+function toggleTL(idx,rObj){
+  const el=document.getElementById('tl-'+idx);if(!el)return;
+  const wasOpen=el.classList.contains('open');
+  document.querySelectorAll('.tl').forEach(e=>e.classList.remove('open'));
+  if(!wasOpen){el.classList.add('open');const pts=[];rfMap.filter(s=>s.routeObj===rObj).forEach(s=>pts.push(...s.latlngs));if(pts.length>0)map.fitBounds(L.latLngBounds(pts).pad(.2));}
+}
+
+function focusSt(id,ev){
+  ev.stopPropagation();const m=stMk[id];if(m){map.setView(m.getLatLng(),1);m.openPopup();}
+}
+
+function updateList(){
+  const lc=document.getElementById('lc');lc.innerHTML='';
+  if(!gData)return;
+  const q=document.getElementById('si').value.toLowerCase();
+
+  if(curTab==='search'){
+    const opOpts=OPERATORS.map(op=>`<option value="${esc(op)}"${op===defaultOp?'selected':''}>${esc(op)}</option>`).join('');
+    lc.innerHTML=`<div style="padding:2px">
+      <div class="fg"><label>🎯 優先モード</label>
+        <select id="r-mode" class="sbox" style="padding:8px">
+          <option value="balanced">⭐ バランス（おすすめ）</option>
+          <option value="express">🚆 新幹線・特急優先（速達重視）</option>
+          <option value="time">⏱️ 所要時間最短</option>
+          <option value="fare">🪙 最安値（運賃重視）</option>
+        </select>
+      </div>
+      <div class="fg"><label>🚉 出発駅</label><input id="r-start" list="stDL" class="sbox" placeholder="出発駅名..."></div>
+      <div class="fg"><label>📍 経由駅（任意）</label><input id="r-wp" list="stDL" class="sbox" placeholder="経由駅名..."></div>
+      <div class="fg"><label>🚉 到着駅</label><input id="r-end" list="stDL" class="sbox" placeholder="到着駅名..."></div>
+      <div class="detail-panel">
+        <div class="detail-toggle" onclick="toggleDetail('fare-det')"><span>⚙️ 運賃計算設定</span><span id="fare-det-arrow">▾</span></div>
+        <div class="detail-body" id="fare-det">
+          <label style="font-size:.72rem;color:var(--sub);font-weight:600">📏 スケール（ブロック/km）</label>
+          <input type="number" id="fare-scale" value="${blockPerKm}" min="1" max="100000">
+          <label style="font-size:.72rem;color:var(--sub);font-weight:600">🏢 未検出時のデフォルト事業者</label>
+          <select id="fare-op">${opOpts}</select>
+          <button class="sbtn" style="padding:8px;font-size:.78rem" onclick="applyFareSettings()">✅ 適用</button>
+        </div>
+      </div>
+      <div class="detail-panel" style="margin-bottom:10px">
+        <div class="detail-toggle" onclick="toggleDetail('exc-det')"><span>⚠️ 除外系統設定</span><span id="exc-det-arrow">▾</span></div>
+        <div class="detail-body" id="exc-det">
+          <input class="exc-srch" type="text" placeholder="路線名・種別で絞り込み..." oninput="filterExclude(this.value)" value="${esc(lastExQ)}">
+          <div class="exc-wrap" id="exc-list"></div>
+        </div>
+      </div>
+      <button class="sbtn" onclick="execSearch()">🔍 経路を検索</button>
+      <div id="s-results" style="margin-top:13px"></div>
+    </div>`;
+    filterExclude(lastExQ);
+    return;
+  }
+
+  if(curTab==='routes'){
+    const seen=new Set(),ur=[];
+    rfMap.forEach(r=>{if(!seen.has(r.routeObj)){seen.add(r.routeObj);ur.push(r);}});
+    const filt=ur.filter(r=>r.routeObj.name.toLowerCase().includes(q));
+    filt.sort((a,b)=>String(a.routeObj.number||'').localeCompare(String(b.routeObj.number||''),undefined,{numeric:true,sensitivity:'base'}));
+    if(!filt.length){lc.innerHTML='<p style="text-align:center;color:var(--sub);font-size:.83rem;margin-top:20px">該当なし</p>';return;}
+    filt.forEach((r,i)=>{
+      const el=document.createElement('div');el.className='li ri';el.style.borderLeftColor=r.color;
+      const pn=parseName(r.routeObj.name),ns=String(r.routeObj.number||'').trim();
+      const svc=detectSvc(r.routeObj);
+      let tlHtml='';
+      if(r.routeObj.stations&&r.routeObj.stations.length>0){
+        tlHtml=`<div class="tl" id="tl-${i}">`;
+        r.routeObj.stations.forEach(sk=>{const sid=sk.split('_')[0];const so=gData.stations[sid];if(so){const sp=parseName(so.name);tlHtml+=`<div class="tr" onclick="focusSt('${sid}',event)"><div class="tb" style="border-color:${r.color}"></div><div class="tn">${esc(sp.primary)}</div></div>`;}});
+        tlHtml+=`</div>`;
+      }
+      el.innerHTML=`<div class="it"><span>${svBadge(svc)}${esc(pn.primary)}</span>${ns?`<span style="font-size:.73rem;color:var(--accent);background:rgba(0,122,255,.1);padding:2px 6px;border-radius:4px">${esc(ns)}</span>`:''}</div><div class="is">${esc(pn.sub)||'路線系統'}</div>${tlHtml}`;
+      el.onclick=()=>toggleTL(i,r.routeObj);
+      lc.appendChild(el);
+    });
+  } else {
+    const sts=gData.stations||{};const arr=[];
+    for(const id in sts)arr.push({id,...sts[id],pn:parseName(sts[id].name)});
+    const filt=arr.filter(s=>s.name.toLowerCase().includes(q)).sort((a,b)=>a.pn.primary.localeCompare(b.pn.primary,'ja'));
+    if(!filt.length){lc.innerHTML='<p style="text-align:center;color:var(--sub);font-size:.83rem;margin-top:20px">該当なし</p>';return;}
+    filt.forEach(s=>{
+      const el=document.createElement('div');el.className='li';
+      el.innerHTML=`<div class="it"><span>${esc(s.pn.primary)}</span></div><div class="is">X:${s.x} / Z:${s.z}</div>${buildRSHtml(s.name)}`;
+      el.onclick=()=>{const m=stMk[s.id];if(m){map.setView(m.getLatLng(),1);m.openPopup();}};
+      lc.appendChild(el);
+    });
+  }
+}
+
+document.getElementById('si').addEventListener('input',updateList);
+
+// ═══════════════════════════════════════════
+// 利用者データ（Ridership）
+// ═══════════════════════════════════════════
+function parseCSV(t){
+  const rows=[];let row=[],f='',inQ=false;
+  for(let i=0;i<t.length;i++){const c=t[i];
+    if(inQ){if(c==='"'){if(t[i+1]==='"'){f+='"';i++;}else inQ=false;}else f+=c;}
+    else{if(c==='"')inQ=true;else if(c===','){row.push(f);f='';}else if(c==='\n'){row.push(f);rows.push(row);row=[];f='';}else if(c!=='\r')f+=c;}}
+  if(f||row.length){row.push(f);rows.push(row);}return rows;
+}
+
+async function fetchSheetRows(sid,gid,gas){
+  if(gas){const r=await fetch(gas+(gas.includes('?')?'&':'?')+(gid?'gid='+encodeURIComponent(gid):''));if(!r.ok)throw new Error('HTTP '+r.status);const j=await r.json();return j.values||j;}
+  if(!sid)throw new Error('ID未入力');
+  const url=`https://docs.google.com/spreadsheets/d/${encodeURIComponent(sid)}/gviz/tq?tqx=out:csv${gid?'&gid='+encodeURIComponent(gid):''}`;
+  const r=await fetch(url);if(!r.ok)throw new Error('HTTP '+r.status);return parseCSV(await r.text());
+}
+
+function toggleRS(){const p=document.getElementById('rs-panel');const a=document.getElementById('rs-arrow');const show=p.style.display==='none';p.style.display=show?'block':'none';a.textContent=show?'▴':'▾';}
+
+async function loadRS(){
+  const sid=document.getElementById('rs-sid').value.trim();
+  const rawGid=document.getElementById('rs-gid').value.trim();
+  const gas=document.getElementById('rs-gas').value.trim();
+  const st=document.getElementById('rs-st');
+  if(!sid&&!gas){st.textContent='⚠️ IDまたはURLを入力してください';return;}
+  try{localStorage.setItem('mtr_rs_sid',sid)}catch(e){}
+  try{localStorage.setItem('mtr_rs_gid',rawGid)}catch(e){}
+  try{localStorage.setItem('mtr_rs_gas',gas)}catch(e){}
+  st.textContent='📡 取得中...';
+  const gids=rawGid?rawGid.split(/[,;\s]+/).filter(Boolean):[RS_GID];
+  let combined={},ok=0,lastErr=null;
+  for(const g of gids){
+    try{
+      const rows=await fetchSheetRows(sid,g,gas);
+      if(!rows||rows.length<2)continue;
+      const hd=rows[0].map(h=>(h||'').toString().trim());
+      // 利用者データ(SR) と 利用者数データ(私鉄) 両方に対応
+      const ci={
+        '駅名':hd.indexOf('駅名'),
+        '読み':hd.indexOf('読み'),
+        '定数':hd.indexOf('定数'),
+        '級':hd.indexOf('級'),
+        '所在国':hd.indexOf('所在国'),
+        '利用客':hd.findIndex(h=>h.includes('利用客')||h.includes('利用者')),
+        '等級':hd.findIndex(h=>h.includes('等級')||h.includes('級')),
+      };
+      if(ci['駅名']===-1)continue;
+      for(let r=1;r<rows.length;r++){
+        const row=rows[r];
+        const n=(row[ci['駅名']]||'').toString().trim();
+        if(!n)continue;
+        const gradeIdx = ci['等級']>=0 ? ci['等級'] : ci['級'];
+        combined[n]={
+          yomi:     ci['読み']>=0  ?(row[ci['読み']]  ||'').toString().trim():'',
+          constant: ci['定数']>=0  ?(row[ci['定数']]  ||'').toString().trim():'',
+          grade:    gradeIdx>=0    ?(row[gradeIdx]    ||'').toString().trim():'',
+          country:  ci['所在国']>=0?(row[ci['所在国']]||'').toString().trim():'',
+          riders:   ci['利用客']>=0?(row[ci['利用客']]||'').toString().trim():'',
+          // 既存データを上書きしない（SRデータと私鉄データをマージ）
+          ...combined[n],
+          // ridersは最新値を優先
+          riders: (ci['利用客']>=0&&(row[ci['利用客']]||'').toString().trim()) || (combined[n]&&combined[n].riders) || '',
+          grade:  (gradeIdx>=0&&(row[gradeIdx]||'').toString().trim()) || (combined[n]&&combined[n].grade) || '',
+        };
+      }
+      ok++;
+    }catch(e){lastErr=e;}
+  }
+  if(Object.keys(combined).length>0){
+    ridershipMap=combined;
+    try{localStorage.setItem('mtr_rs_cache',JSON.stringify({map:ridershipMap,at:Date.now()}))}catch(e){}
+    st.textContent=`✅ ${ok}シート / ${Object.keys(ridershipMap).length}駅 読込`;
+    updateList();
+  } else {
+    st.innerHTML=`❌ ${lastErr?lastErr.message:'データなし'}`;
+  }
+}
+
+function lookupRS(raw){const p=parseName(raw).primary;const s=stripCode(p);return ridershipMap[s]||ridershipMap[p]||null;}
+function fmtR(v){const n=Number(String(v).replace(/,/g,''));return isNaN(n)?v||'―':n.toLocaleString('ja-JP');}
+
+function buildRSHtml(raw){
+  const info=lookupRS(raw);if(!info)return'';
+  const parts=[];
+  if(info.yomi)   parts.push(`📖 読み: <strong>${esc(info.yomi)}</strong>`);
+  if(info.riders) parts.push(`👥 利用客: <strong>${fmtR(info.riders)}</strong>`);
+  if(info.grade)  parts.push(`🏅 等級: <strong>${esc(info.grade)}級</strong>`);
+  if(info.constant) parts.push(`定数: ${esc(info.constant)}`);
+  if(info.country)  parts.push(`🌐 ${esc(info.country)}`);
+  if(!parts.length)return'';
+  return`<div class="ri-block">${parts.join('<br>')}</div>`;
+}
+
+function initRS(){
+  try{
+    document.getElementById('rs-sid').value=localStorage.getItem('mtr_rs_sid')||RS_SID;
+    document.getElementById('rs-gid').value=localStorage.getItem('mtr_rs_gid')||RS_GID;
+    document.getElementById('rs-gas').value=localStorage.getItem('mtr_rs_gas')||'';
+    const cache=localStorage.getItem('mtr_rs_cache');
+    if(cache){const c=JSON.parse(cache);if(c&&c.map)ridershipMap=c.map;}
+  }catch(e){}
+  loadRS();
+}
+</script>
+</body>
+</html>
